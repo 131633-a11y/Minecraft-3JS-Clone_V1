@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Procedural Voxel Engine (Greenheck Architecture)</title>
+    <title>3D Minecraft Beta Clone</title>
     <style>
         body { margin: 0; overflow: hidden; background: #87CEEB; font-family: 'Segoe UI', sans-serif; }
         #crosshair {
@@ -32,14 +32,13 @@
 
     <div id="crosshair"></div>
     <div id="ui">
-        <h3>Voxel Engine Core</h3>
+        <h3>Voxel Engine Active</h3>
         <p>Click screen to capture mouse view.</p>
         <p><strong>WASD + Space:</strong> Move & Jump</p>
-        <p><strong>Left Click:</strong> Place Target Block</p>
-        <p><strong>Shift + Click:</strong> Destroy Target Block</p>
+        <p><strong>Left Click:</strong> Place Block</p>
+        <p><strong>Shift + Click:</strong> Destroy Block</p>
     </div>
 
-    <!-- Import Map Configuration Targeting Three.js Module Core -->
     <script type="importmap">
         {
             "imports": {
@@ -53,34 +52,27 @@
         import * as THREE from 'three';
         import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
 
-        // --- 1. Architectural Constants & Data Dictionary ---
-        const BLOCK_SIZE = 1;
+        // --- 1. Map Constants ---
         const WORLD_WIDTH = 32;
         const WORLD_HEIGHT = 16;
         const WORLD_DEPTH = 32;
 
-        const BLOCKS = {
-            AIR: 0,
-            GRASS: 1,
-            DIRT: 2,
-            STONE: 3
-        };
+        const BLOCKS = { AIR: 0, GRASS: 1, DIRT: 2, STONE: 3 };
 
-        // Material color configuration index map
         const BLOCK_MATERIALS = {
             [BLOCKS.GRASS]: new THREE.MeshLambertMaterial({ color: 0x557a2b }),
             [BLOCKS.DIRT]: new THREE.MeshLambertMaterial({ color: 0x8b5a2b }),
             [BLOCKS.STONE]: new THREE.MeshLambertMaterial({ color: 0x737373 })
         };
 
-        // --- 2. Structural Instantiations ---
+        // --- 2. Base Setup ---
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x87CEEB);
-        scene.fog = new THREE.FogExp2(0x87CEEB, 0.03);
+        scene.fog = new THREE.FogExp2(0x87CEEB, 0.015);
 
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        // Start player safely floating above the initial generation layer
-        camera.position.set(WORLD_WIDTH / 2, 10, WORLD_DEPTH / 2);
+        // Set camera safely in the middle of our grid layout
+        camera.position.set(WORLD_WIDTH / 2, 12, WORLD_DEPTH / 2);
 
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
@@ -90,16 +82,15 @@
         const controls = new PointerLockControls(camera, document.body);
         document.body.addEventListener('click', () => controls.lock());
 
-        // --- 3. Environmental Light Maps ---
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.55);
+        // --- 3. Lighting ---
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
         scene.add(ambientLight);
 
-        const sunLight = new THREE.DirectionalLight(0xffffff, 0.75);
-        sunLight.position.set(25, 50, 25);
+        const sunLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        sunLight.position.set(10, 30, 20);
         scene.add(sunLight);
 
-        // --- 4. The World Data Model Array ---
-        // A flat typed array representing [x][y][z] positions for performance optimization
+        // --- 4. World Array Map Data Engine ---
         const worldData = new Uint8Array(WORLD_WIDTH * WORLD_HEIGHT * WORLD_DEPTH);
 
         function getBlockIndex(x, y, z) {
@@ -117,19 +108,18 @@
             }
         }
 
-        // --- 5. Generate Structural Terrain Model Data ---
+        // Simple Sine-wave pseudo-noise engine to guarantee structural terrain shapes load instantly
         function generateTerrainData() {
             for (let x = 0; x < WORLD_WIDTH; x++) {
                 for (let z = 0; z < WORLD_DEPTH; z++) {
-                    // Simulating procedural variance mathematically
-                    const heightValue = Math.floor(Math.sin(x * 0.1) * Math.cos(z * 0.1) * 3) + 6;
+                    const heightValue = Math.floor(Math.sin(x * 0.15) * Math.cos(z * 0.15) * 2) + 5;
                     
                     for (let y = 0; y < WORLD_HEIGHT; y++) {
                         if (y > heightValue) {
                             setBlock(x, y, z, BLOCKS.AIR);
                         } else if (y === heightValue) {
                             setBlock(x, y, z, BLOCKS.GRASS);
-                        } else if (y > heightValue - 3) {
+                        } else if (y > heightValue - 2) {
                             setBlock(x, y, z, BLOCKS.DIRT);
                         } else {
                             setBlock(x, y, z, BLOCKS.STONE);
@@ -140,22 +130,35 @@
         }
         generateTerrainData();
 
-        // --- 6. Mesh Batched Geometry Instantiation Manager ---
+        // --- 5. Rendering Instanced Batch System ---
         let instancedMeshes = {};
-        const blockGeometry = new THREE.BoxGeometry(BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+        const blockGeometry = new THREE.BoxGeometry(1, 1, 1);
 
         function updateRenderMeshes() {
-            // Remove previous generation mesh assets from operational visibility tracking
             Object.values(instancedMeshes).forEach(mesh => scene.remove(mesh));
             instancedMeshes = {};
 
-            // Count occurrences to reserve memory boundaries correctly
             const counts = { [BLOCKS.GRASS]: 0, [BLOCKS.DIRT]: 0, [BLOCKS.STONE]: 0 };
-            for (let i = 0; i < worldData.length; i++) {
-                if (counts[worldData[i]] !== undefined) counts[worldData[i]]++;
+            
+            // Loop to discover where blocks exist
+            for (let x = 0; x < WORLD_WIDTH; x++) {
+                for (let y = 0; y < WORLD_HEIGHT; y++) {
+                    for (let z = 0; z < WORLD_DEPTH; z++) {
+                        const type = getBlock(x, y, z);
+                        if (type !== BLOCKS.AIR) {
+                            // Only count and render a block if at least one side is exposed to air
+                            const exposed = getBlock(x, y+1, z) === BLOCKS.AIR || 
+                                            getBlock(x, y-1, z) === BLOCKS.AIR ||
+                                            getBlock(x-1, y, z) === BLOCKS.AIR || 
+                                            getBlock(x+1, y, z) === BLOCKS.AIR ||
+                                            getBlock(x, y, z-1) === BLOCKS.AIR || 
+                                            getBlock(x, y, z+1) === BLOCKS.AIR;
+                            if (exposed) counts[type]++;
+                        }
+                    }
+                }
             }
 
-            // Allocate instanced meshes based on exact array block distributions
             Object.keys(counts).forEach(type => {
                 if (counts[type] > 0) {
                     instancedMeshes[type] = new THREE.InstancedMesh(blockGeometry, BLOCK_MATERIALS[type], counts[type]);
@@ -168,28 +171,25 @@
             for (let x = 0; x < WORLD_WIDTH; x++) {
                 for (let y = 0; y < WORLD_HEIGHT; y++) {
                     for (let z = 0; z < WORLD_DEPTH; z++) {
-                        const blockType = getBlock(x, y, z);
-                        if (blockType !== BLOCKS.AIR && instancedMeshes[blockType]) {
+                        const type = getBlock(x, y, z);
+                        if (type !== BLOCKS.AIR && instancedMeshes[type]) {
+                            const exposed = getBlock(x, y+1, z) === BLOCKS.AIR || 
+                                            getBlock(x, y-1, z) === BLOCKS.AIR ||
+                                            getBlock(x-1, y, z) === BLOCKS.AIR || 
+                                            getBlock(x+1, y, z) === BLOCKS.AIR ||
+                                            getBlock(x, y, z-1) === BLOCKS.AIR || 
+                                            getBlock(x, y, z+1) === BLOCKS.AIR;
                             
-                            // Check visibility: skip inner blocks to optimize rendering performance
-                            const top = getBlock(x, y + 1, z);
-                            const bottom = getBlock(x, y - 1, z);
-                            const left = getBlock(x - 1, y, z);
-                            const right = getBlock(x + 1, y, z);
-                            const front = getBlock(x, y, z + 1);
-                            const back = getBlock(x, y, z - 1);
-                            
-                            if (top && bottom && left && right && front && back) continue;
+                            if (!exposed) continue;
 
                             dummy.position.set(x + 0.5, y + 0.5, z + 0.5);
                             dummy.updateMatrix();
-                            instancedMeshes[blockType].setMatrixAt(trackers[blockType]++, dummy.matrix);
+                            instancedMeshes[type].setMatrixAt(trackers[type]++, dummy.matrix);
                         }
                     }
                 }
             }
 
-            // Sync structural changes directly to rendering memory buffers
             Object.values(instancedMeshes).forEach(mesh => {
                 mesh.instanceMatrix.needsUpdate = true;
                 scene.add(mesh);
@@ -197,25 +197,24 @@
         }
         updateRenderMeshes();
 
-        // --- 7. Player Navigation Controls & Basic Physics Loop ---
+        // --- 6. First Person Movement & Physics Matrix Engine ---
         const keysState = { w: false, a: false, s: false, d: false, space: false };
         const velocity = new THREE.Vector3();
-        const playerRadius = 0.35;
-        const playerHeight = 1.6;
         let isGrounded = false;
+        const playerHeight = 1.6;
 
         window.addEventListener('keydown', (e) => handleKey(e.code, true));
         window.addEventListener('keyup', (e) => handleKey(e.code, false));
 
         function handleKey(code, isDown) {
-            if (code === 'KeyW' || code === 'ArrowUp') keysState.w = isDown;
-            if (code === 'KeyA' || code === 'ArrowLeft') keysState.a = isDown;
-            if (code === 'KeyS' || code === 'ArrowDown') keysState.s = isDown;
-            if (code === 'KeyD' || code === 'ArrowRight') keysState.d = isDown;
+            if (code === 'KeyW') keysState.w = isDown;
+            if (code === 'KeyA') keysState.a = isDown;
+            if (code === 'KeyS') keysState.s = isDown;
+            if (code === 'KeyD') keysState.d = isDown;
             if (code === 'Space') keysState.space = isDown;
         }
 
-        // --- 8. Interactivity Engine (Raycasting Logic) ---
+        // --- 7. Block Editing Logic ---
         const raycaster = new THREE.Raycaster();
         const centerTarget = new THREE.Vector2(0, 0);
 
@@ -223,29 +222,28 @@
             if (!controls.isLocked) return;
 
             raycaster.setFromCamera(centerTarget, camera);
-            // Collect intersection maps from our active instanced structures
             const targets = Object.values(instancedMeshes);
             const intersects = raycaster.intersectObjects(targets);
 
             if (intersects.length > 0) {
+                const intersect = intersects[0];
+                const point = intersect.point.clone();
+                const normal = intersect.face.normal.clone();
+                
+                if (e.shiftKey) {
 Use code with caution.
-const intersect = intersects[0];
-// Determine precise spatial array alignment values
-const point = intersect.point.clone();
-const normal = intersect.face.normal.clone();
-if (e.shiftKey) {
-// Subtract half the normal vector to target the internal core coordinate
+// Destroy block action code
 const blockPos = point.clone().sub(normal.clone().multiplyScalar(0.5));
 setBlock(Math.floor(blockPos.x), Math.floor(blockPos.y), Math.floor(blockPos.z), BLOCKS.AIR);
 } else {
-// Add half the normal vector to target the adjacent air cell
+// Place stone block action code
 const blockPos = point.clone().add(normal.clone().multiplyScalar(0.5));
 setBlock(Math.floor(blockPos.x), Math.floor(blockPos.y), Math.floor(blockPos.z), BLOCKS.STONE);
 }
 updateRenderMeshes();
 }
 });
-// --- 9. Real-Time Application Execution Tick ---
+// --- 8. Core Animation Tick Loop ---
 const clock = new THREE.Clock();
 function animate() {
 requestAnimationFrame(animate);
@@ -253,10 +251,8 @@ if (!controls.isLocked) {
 renderer.render(scene, camera);
 return;
 }
-const dt = Math.min(clock.getDelta(), 0.1); // Dynamic frame lag guard
-// Apply gravity metrics across our vertical navigation channel
-velocity.y -= 22.0 * dt;
-// Extract directional forward/sideways reference headings from the active camera
+const dt = Math.min(clock.getDelta(), 0.1);
+velocity.y -= 22.0 * dt; // Gravity scalar acceleration
 const frontDirection = new THREE.Vector3();
 camera.getWorldDirection(frontDirection);
 frontDirection.y = 0;
@@ -268,28 +264,26 @@ if (keysState.w) moveVector.add(frontDirection);
 if (keysState.s) moveVector.sub(frontDirection);
 if (keysState.a) moveVector.add(sideDirection);
 if (keysState.d) moveVector.sub(sideDirection);
-moveVector.normalize().multiplyScalar(5.0); // Baseline movement velocity speed scale
+moveVector.normalize().multiplyScalar(5.0); // Baseline speed limit metric
 velocity.x = moveVector.x;
 velocity.z = moveVector.z;
-// Apply displacement step checks to the camera axis positions
 camera.position.x += velocity.x * dt;
 camera.position.z += velocity.z * dt;
 camera.position.y += velocity.y * dt;
-// Basic Ground Y-Boundary Collision Map Logic
-const checkX = Math.floor(camera.position.x);
-const checkZ = Math.floor(camera.position.z);
-const checkY = Math.floor(camera.position.y - playerHeight);
-const standingBlock = getBlock(checkX, checkY, checkZ);
-if (standingBlock !== BLOCKS.AIR) {
-camera.position.y = checkY + 1 + playerHeight;
+// Strict collision ground checks
+const pX = Math.floor(camera.position.x);
+const pZ = Math.floor(camera.position.z);
+const pY = Math.floor(camera.position.y - playerHeight);
+const blockBeneath = getBlock(pX, pY, pZ);
+if (blockBeneath !== BLOCKS.AIR) {
+camera.position.y = pY + 1 + playerHeight;
 velocity.y = 0;
 isGrounded = true;
 } else {
 isGrounded = false;
 }
-// Jump command processing mechanics
 if (keysState.space && isGrounded) {
-velocity.y = 7.5; // Jump vertical force impact scalar
+velocity.y = 7.5; // Upward velocity impulse scalar
 isGrounded = false;
 }
 renderer.render(scene, camera);
@@ -300,4 +294,3 @@ camera.aspect = window.innerWidth / window.innerHeight;
 camera.updateProjectionMatrix();
 renderer.setSize(window.innerWidth, window.innerHeight);
 });
-
